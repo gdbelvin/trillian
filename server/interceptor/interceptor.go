@@ -16,6 +16,7 @@
 package interceptor
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/google/trillian"
@@ -44,13 +45,13 @@ func (i *TrillianInterceptor) UnaryInterceptor(ctx context.Context, req interfac
 
 	rpcInfo, err := getRPCInfo(req, info.FullMethod, quotaUser)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getRPCInfo(): %v", err)
 	}
 
 	if rpcInfo.treeID != 0 {
 		tree, err := trees.GetTree(ctx, i.Admin, rpcInfo.treeID, rpcInfo.opts)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("GetTree(%v): %v", rpcInfo.treeID, err)
 		}
 		ctx = trees.NewContext(ctx, tree)
 
