@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"sync"
 
@@ -151,32 +152,31 @@ func (s *subtreeWriter) getOrCreateChildSubtree(ctx context.Context, childPrefix
 	return subtree, nil
 }
 
-// SetLeaf sets a single leaf hash for incorporation into the sparse Merkle
-// tree.
+// SetLeaf sets a single leaf hash for incorporation into the sparse Merkle tree.
+// index is the full path of the leaf, starting from the root (not the subtree's root).
 func (s *subtreeWriter) SetLeaf(ctx context.Context, index []byte, hash []byte) error {
-	indexLen := len(index) * 8
+	depth := len(index) * 8
+	absSubtreeDepth := len(s.prefix)*8 + s.subtreeDepth
 
 	switch {
-	case indexLen < s.subtreeDepth:
-		return fmt.Errorf("index length %d is < our depth %d", indexLen, s.subtreeDepth)
+	case depth < absSubtreeDepth:
+		return fmt.Errorf("depth: %d, want >= %d", depth, absSubtreeDepth)
 
-	case indexLen > s.subtreeDepth:
-		childPrefix := index[:s.subtreeDepth/8]
+	case depth > absSubtreeDepth:
+		childPrefix := index[:absSubtreeDepth/8]
 		subtree, err := s.getOrCreateChildSubtree(ctx, childPrefix)
 		if err != nil {
 			return err
 		}
 
-		return subtree.SetLeaf(ctx, index[s.subtreeDepth/8:], hash)
+		return subtree.SetLeaf(ctx, index, hash)
 
-	case indexLen == s.subtreeDepth:
+	default: // depth == absSubtreeDepth:
 		s.leafQueue <- func() (*indexAndHash, error) {
 			return &indexAndHash{index: index, hash: hash}, nil
 		}
 		return nil
 	}
-
-	return fmt.Errorf("internal logic error in SetLeaf. index length: %d, subtreeDepth: %d", indexLen, s.subtreeDepth)
 }
 
 // CalculateRoot initiates the process of calculating the subtree root.
@@ -234,8 +234,7 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 		})
 		nodesToStore = append(nodesToStore,
 			storage.Node{
-				NodeID: storage.NewNodeIDFromHash(
-					bytes.Join([][]byte{s.prefix, ih.index}, []byte{})),
+				NodeID:       storage.NewNodeIDFromHash(ih.index),
 				Hash:         ih.hash,
 				NodeRevision: s.treeRevision,
 			})
@@ -244,9 +243,10 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 	// calculate new root, and intermediate nodes:
 	hs2 := NewHStar2(s.treeID, s.treeHasher)
 	addressSize := len(s.prefix) + s.subtreeDepth/8
-	root, err := hs2.HStar2Nodes(nil, len(s.prefix)*8, s.subtreeDepth, leaves,
+	root, err := hs2.HStar2Nodes(s.prefix, s.subtreeDepth, leaves,
 		func(depth int, index *big.Int) ([]byte, error) {
-			nodeID := nodeIDFromAddress(addressSize, s.prefix, index, depth)
+			nodeID := nodeIDFromAddress(addressSize, nil, index, depth)
+			log.Printf("Get(%x, %d, %s)", index.Bytes(), depth, nodeID.String())
 			nodes, err := s.tx.GetMerkleNodes(ctx, s.treeRevision, []storage.NodeID{nodeID})
 			if err != nil {
 				return nil, err
@@ -254,21 +254,22 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 			if len(nodes) == 0 {
 				return nil, nil
 			}
-			if expected, got := nodeID, nodes[0].NodeID; !expected.Equivalent(got) {
-				return nil, fmt.Errorf("expected node ID %s from storage, but got %s", expected.String(), got.String())
+			if got, want := nodes[0].NodeID, nodeID; !storage.Equal(&got, &want) {
+				return nil, fmt.Errorf("got node %s from storage, want %s", got, want)
 			}
-			if expected, got := s.treeRevision, nodes[0].NodeRevision; got > expected {
-				return nil, fmt.Errorf("expected node revision <= %d, but got %d", expected, got)
+			if got, want := nodes[0].NodeRevision, s.treeRevision; got > want {
+				return nil, fmt.Errorf("got node revision %d, want <= %d", got, want)
 			}
 			return nodes[0].Hash, nil
 		},
 		func(depth int, index *big.Int, h []byte) error {
-			// Don't store the root node of the subtree - that's part of the parent
-			// tree.
-			if depth == 0 && len(s.prefix) > 0 {
+			// Don't store the root node of the subtree - that's
+			// part of the parent tree.
+			if depth == len(s.prefix)*8 && len(s.prefix) > 0 {
 				return nil
 			}
-			nID := nodeIDFromAddress(addressSize, s.prefix, index, depth)
+			nID := nodeIDFromAddress(addressSize, nil, index, depth)
+			log.Printf("Set(%x, %d, %s)", index.Bytes(), depth, nID.String())
 			nodesToStore = append(nodesToStore,
 				storage.Node{
 					NodeID:       nID,
