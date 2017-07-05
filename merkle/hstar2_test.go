@@ -104,7 +104,7 @@ func TestHStar2GetSet(t *testing.T) {
 		if len(values) != 1 {
 			t.Fatalf("Should only have 1 leaf per run, got %d", len(values))
 		}
-		root, err := s.HStar2Nodes(s.hasher.BitLen(), 0, values,
+		root, err := s.HStar2Nodes(nil, 0, s.hasher.BitLen(), values,
 			func(depth int, index *big.Int) ([]byte, error) {
 				return cache[fmt.Sprintf("%x/%d", index, depth)], nil
 			},
@@ -160,7 +160,7 @@ func TestHStar2OffsetRootKAT(t *testing.T) {
 			leaves := createHStar2Leaves(treeID, maphasher.Default, iv...)
 			intermediates := rootsForTrimmedKeys(t, size, leaves)
 
-			root, err := s.HStar2Nodes(size, s.hasher.BitLen()-size, intermediates,
+			root, err := s.HStar2Nodes(nil, 0, size, intermediates,
 				func(int, *big.Int) ([]byte, error) { return nil, nil },
 				func(int, *big.Int, []byte) error { return nil })
 			if err != nil {
@@ -177,7 +177,7 @@ func TestHStar2OffsetRootKAT(t *testing.T) {
 func TestHStar2NegativeTreeLevelOffset(t *testing.T) {
 	s := NewHStar2(treeID, maphasher.Default)
 
-	_, err := s.HStar2Nodes(32, -1, []HStar2LeafHash{},
+	_, err := s.HStar2Nodes(nil, 255, 2, []HStar2LeafHash{},
 		func(int, *big.Int) ([]byte, error) { return nil, nil },
 		func(int, *big.Int, []byte) error { return nil })
 	if got, want := err, ErrNegativeTreeLevelOffset; got != want {

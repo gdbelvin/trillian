@@ -55,6 +55,7 @@ type indexAndHash struct {
 
 // rootHashOrError represents a (sub-)tree root hash, or an error which
 // prevented the calculation from completing.
+// TODO(gdbelvin): represent an empty subtree with a nil hash?
 type rootHashOrError struct {
 	hash []byte
 	err  error
@@ -169,7 +170,9 @@ func (s *subtreeWriter) SetLeaf(ctx context.Context, index []byte, hash []byte) 
 		return subtree.SetLeaf(ctx, index[s.subtreeDepth/8:], hash)
 
 	case indexLen == s.subtreeDepth:
-		s.leafQueue <- func() (*indexAndHash, error) { return &indexAndHash{index: index, hash: hash}, nil }
+		s.leafQueue <- func() (*indexAndHash, error) {
+			return &indexAndHash{index: index, hash: hash}, nil
+		}
 		return nil
 	}
 
@@ -225,21 +228,23 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 			s.root <- rootHashOrError{hash: nil, err: err}
 			return
 		}
-		leaves = append(leaves, HStar2LeafHash{Index: new(big.Int).SetBytes(ih.index), LeafHash: ih.hash})
+		leaves = append(leaves, HStar2LeafHash{
+			Index:    new(big.Int).SetBytes(ih.index),
+			LeafHash: ih.hash,
+		})
 		nodesToStore = append(nodesToStore,
 			storage.Node{
-				NodeID:       storage.NewNodeIDFromHash(bytes.Join([][]byte{s.prefix, ih.index}, []byte{})),
+				NodeID: storage.NewNodeIDFromHash(
+					bytes.Join([][]byte{s.prefix, ih.index}, []byte{})),
 				Hash:         ih.hash,
 				NodeRevision: s.treeRevision,
 			})
-
 	}
 
 	// calculate new root, and intermediate nodes:
 	hs2 := NewHStar2(s.treeID, s.treeHasher)
-	treeDepthOffset := (s.treeHasher.Size()-len(s.prefix))*8 - s.subtreeDepth
 	addressSize := len(s.prefix) + s.subtreeDepth/8
-	root, err := hs2.HStar2Nodes(s.subtreeDepth, treeDepthOffset, leaves,
+	root, err := hs2.HStar2Nodes(nil, len(s.prefix)*8, s.subtreeDepth, leaves,
 		func(depth int, index *big.Int) ([]byte, error) {
 			nodeID := nodeIDFromAddress(addressSize, s.prefix, index, depth)
 			nodes, err := s.tx.GetMerkleNodes(ctx, s.treeRevision, []storage.NodeID{nodeID})

@@ -17,6 +17,7 @@ package merkle
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"sort"
 
@@ -56,6 +57,7 @@ func NewHStar2(treeID int64, hasher hashers.MapHasher) HStar2 {
 // HStar2Root calculates the root of a sparse Merkle tree of depth n which contains
 // the given set of non-null leaves.
 func (s *HStar2) HStar2Root(n int, values []HStar2LeafHash) ([]byte, error) {
+	log.Printf("HStar2Root(%v, len values: %v)", n, len(values))
 	sort.Sort(ByIndex{values})
 	return s.hStar2b(n, values, smtZero,
 		func(depth int, index *big.Int) ([]byte, error) {
@@ -70,25 +72,29 @@ type SparseGetNodeFunc func(depth int, index *big.Int) ([]byte, error)
 // SparseSetNodeFunc should store the passed node hash, associating it with the address.
 type SparseSetNodeFunc func(depth int, index *big.Int, hash []byte) error
 
-// HStar2Nodes calculates the root hash of a pre-existing sparse Merkle tree
-// plus the extra values passed in.  Get and set are used to fetch and store
-// internal node values. Values must not contain multiple leaves for the same
-// index.
+// HStar2Nodes calculates the root hash of a pre-existing sparse Merkle tree (SMT).
+// HStar2Nodes can also calculate the root nodes of subtrees inside a SMT.
+// Get and set are used to fetch and store internal node values.
+// Values must not contain multiple leaves for the same index.
 //
-// The treeLevelOffset argument is used when the tree to be calculated is part
-// of a larger tree. It identifes the level in the larger tree at which the
-// root of the subtree being calculated is found.
-// e.g. Imagine a tree 256 levels deep, and that you already (somehow) happen
-// to have the intermediate hash values for the non-null nodes 8 levels below
-// the root already calculated (i.e. you just need to calculate the top 8
-// levels of a 256-level tree).  To do this, you'd set treeDepth=8, and
-// treeLevelOffset=248 (256-8).
-func (s *HStar2) HStar2Nodes(treeDepth, treeLevelOffset int, values []HStar2LeafHash, get SparseGetNodeFunc, set SparseSetNodeFunc) ([]byte, error) {
+// index is the location of this subtree within the larger tree. Root is at nil.
+// depth is the location of this subtree within the larger tree. Root is at 0.
+// subtreeDepth is the number of levels in this subtree. Typically 8.
+// The height of the whole tree is assumed to be hasher.BitLen()
+func (s *HStar2) HStar2Nodes(index []byte, depth, subtreeDepth int, values []HStar2LeafHash,
+	get SparseGetNodeFunc, set SparseSetNodeFunc) ([]byte, error) {
+	treeDepth := subtreeDepth
+	treeLevelOffset := s.hasher.BitLen() - depth - subtreeDepth
+	log.Printf("HStar2Nodes(%v, %v, len values: %v)", treeDepth, treeLevelOffset, len(values))
+	for _, v := range values {
+		log.Printf("   v: %x : %x", v.Index.Bytes(), v.LeafHash)
+	}
 	if treeLevelOffset < 0 {
 		return nil, ErrNegativeTreeLevelOffset
 	}
 	sort.Sort(ByIndex{values})
-	return s.hStar2b(treeDepth, values, smtZero,
+	offset := new(big.Int).SetBytes(index)
+	return s.hStar2b(treeDepth, values, offset,
 		func(depth int, index *big.Int) ([]byte, error) {
 			// if we've got a function for getting existing node values, try it:
 			h, err := get(treeDepth-depth, index)
@@ -107,8 +113,7 @@ func (s *HStar2) HStar2Nodes(treeDepth, treeLevelOffset int, values []HStar2Leaf
 		})
 }
 
-// hStar2b is the recursive implementation for calculating a sparse Merkle tree
-// root value.
+// hStar2b computes a sparse Merkle tree root value recursively.
 func (s *HStar2) hStar2b(n int, values []HStar2LeafHash, offset *big.Int, get SparseGetNodeFunc, set SparseSetNodeFunc) ([]byte, error) {
 	if n == 0 {
 		switch {
