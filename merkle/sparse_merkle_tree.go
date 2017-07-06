@@ -110,7 +110,7 @@ type subtreeWriter struct {
 	tx           storage.TreeTX
 	treeRevision int64
 
-	treeHasher hashers.MapHasher
+	hasher hashers.MapHasher
 
 	getSubtree getSubtreeFunc
 }
@@ -195,6 +195,8 @@ func (s *subtreeWriter) RootHash() ([]byte, error) {
 	return r.hash, r.err
 }
 
+// Index is the full path of the node.
+// Prefix is the path to the subtree that contains this node.
 func nodeIDFromAddress(size int, prefix []byte, index *big.Int, depth int) storage.NodeID {
 	switch {
 	case depth < 0:
@@ -202,11 +204,12 @@ func nodeIDFromAddress(size int, prefix []byte, index *big.Int, depth int) stora
 	case depth == 0:
 		return storage.NewEmptyNodeID(size * 8)
 	}
-	ib := index.Bytes()
-	t := make([]byte, size)
 
-	copy(t, prefix)
+	// Left pad index to length size.
+	t := make([]byte, size)
+	ib := index.Bytes()
 	copy(t[size-len(ib):], ib)
+
 	n := storage.NewNodeIDFromHash(t)
 	n.PrefixLenBits = len(prefix)*8 + depth
 	return n
@@ -228,8 +231,10 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 			s.root <- rootHashOrError{hash: nil, err: err}
 			return
 		}
+		index := new(big.Int).SetBytes(ih.index)
+		index = index.Lsh(index, uint(s.hasher.BitLen()-len(ih.index)*8))
 		leaves = append(leaves, HStar2LeafHash{
-			Index:    new(big.Int).SetBytes(ih.index),
+			Index:    index,
 			LeafHash: ih.hash,
 		})
 		nodesToStore = append(nodesToStore,
@@ -241,12 +246,12 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 	}
 
 	// calculate new root, and intermediate nodes:
-	hs2 := NewHStar2(s.treeID, s.treeHasher)
-	addressSize := len(s.prefix) + s.subtreeDepth/8
+	hs2 := NewHStar2(s.treeID, s.hasher)
+	addressSize := s.hasher.BitLen()
 	root, err := hs2.HStar2Nodes(s.prefix, s.subtreeDepth, leaves,
 		func(depth int, index *big.Int) ([]byte, error) {
+			log.Printf("Get(%x, %d)", index.Bytes(), depth)
 			nodeID := nodeIDFromAddress(addressSize, nil, index, depth)
-			log.Printf("Get(%x, %d, %s)", index.Bytes(), depth, nodeID.String())
 			nodes, err := s.tx.GetMerkleNodes(ctx, s.treeRevision, []storage.NodeID{nodeID})
 			if err != nil {
 				return nil, err
@@ -269,7 +274,7 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 				return nil
 			}
 			nID := nodeIDFromAddress(addressSize, nil, index, depth)
-			log.Printf("Set(%x, %d, %s)", index.Bytes(), depth, nID.String())
+			log.Printf("Set(%x, %d): %x", index.Bytes(), depth, h)
 			nodesToStore = append(nodesToStore,
 				storage.Node{
 					NodeID:       nID,
@@ -339,7 +344,7 @@ func newLocalSubtreeWriter(ctx context.Context, treeID, rev int64, prefix []byte
 		root:         make(chan rootHashOrError, 1),
 		children:     make(map[string]Subtree),
 		tx:           tx,
-		treeHasher:   h,
+		hasher:       h,
 		getSubtree: func(ctx context.Context, p []byte) (Subtree, error) {
 			myPrefix := bytes.Join([][]byte{prefix, p}, []byte{})
 			return newLocalSubtreeWriter(ctx, treeID, rev, myPrefix, depths[1:], newTX, h)
@@ -400,14 +405,20 @@ func (s SparseMerkleTreeReader) RootAtRevision(ctx context.Context, rev int64) (
 func (s SparseMerkleTreeReader) InclusionProof(ctx context.Context, rev int64, index []byte) ([][]byte, error) {
 	nid := storage.NewNodeIDFromHash(index)
 	sibs := nid.Siblings()
+	log.Printf("Siblings: ")
+	for _, s := range sibs {
+		log.Printf("   %x", s.Path)
+	}
 	nodes, err := s.tx.GetMerkleNodes(ctx, rev, sibs)
 	if err != nil {
 		return nil, err
 	}
 
 	nodeMap := make(map[string]*storage.Node)
+	log.Printf("Got Nodes: ")
 	for _, n := range nodes {
 		n := n // need this or we'll end up with the same node hash repeated in the map
+		log.Printf("   %x, %d: %x", n.NodeID.Path, len(n.NodeID.String()), n.Hash)
 		nodeMap[n.NodeID.String()] = &n
 	}
 

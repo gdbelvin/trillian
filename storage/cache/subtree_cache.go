@@ -428,16 +428,15 @@ func PopulateMapSubtreeNodes(treeID int64, hasher hashers.MapHasher) storage.Pop
 			if k[0]%depthQuantum != 0 {
 				return fmt.Errorf("unexpected non-leaf suffix found: %x", k)
 			}
+			index := big.NewInt(int64(k[1]))
+			index = index.Lsh(index, uint(hasher.BitLen()-8))
 			leaves = append(leaves, merkle.HStar2LeafHash{
+				Index:    index,
 				LeafHash: v,
-				Index:    big.NewInt(int64(k[1])),
 			})
 		}
 		hs2 := merkle.NewHStar2(treeID, hasher)
-		root, err := hs2.HStar2Nodes(st.Prefix, int(st.Depth), leaves,
-			func(depth int, index *big.Int) ([]byte, error) {
-				return nil, nil
-			},
+		root, err := hs2.HStar2Nodes(st.Prefix, int(st.Depth), leaves, nil,
 			func(depth int, index *big.Int, h []byte) error {
 				i := index.Int64()
 				sfx, err := makeSuffixKey(depth, i)

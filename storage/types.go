@@ -186,16 +186,19 @@ func (n *NodeID) CoordString() string {
 
 // Siblings returns the siblings of the given node.
 func (n *NodeID) Siblings() []NodeID {
-	r := make([]NodeID, n.PrefixLenBits, n.PrefixLenBits)
 	l := n.PrefixLenBits
+	r := make([]NodeID, l)
 	// Index of the bit to twiddle:
 	bi := n.PathLenBits - n.PrefixLenBits
-	for i := 0; i < len(r); i++ {
+	for i := range r {
 		r[i].PrefixLenBits = l - i
-		r[i].Path = make([]byte, len(n.Path))
 		r[i].PathLenBits = n.PathLenBits
+		r[i].Path = make([]byte, len(n.Path))
 		copy(r[i].Path, n.Path)
 		r[i].SetBit(bi, n.Bit(bi)^1)
+		for j := bi - 1; j >= 0; j-- {
+			r[i].SetBit(j, 0)
+		}
 		bi++
 	}
 	return r

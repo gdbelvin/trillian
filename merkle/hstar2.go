@@ -112,7 +112,7 @@ func (s *HStar2) hStar2b(depth, maxDepth int, values []HStar2LeafHash, offset *b
 		return s.get(offset, depth, get)
 	}
 
-	bitsLeft := maxDepth - depth
+	bitsLeft := s.hasher.BitLen() - depth
 	split := new(big.Int).Lsh(smtOne, uint(bitsLeft-1))
 	split.Add(split, offset)
 	i := sort.Search(len(values), func(i int) bool { return values[i].Index.Cmp(split) >= 0 })
@@ -143,7 +143,9 @@ func (s *HStar2) get(index *big.Int, depth int, getter SparseGetNodeFunc) ([]byt
 		}
 	}
 	height := s.hasher.BitLen() - depth
-	return s.hasher.HashEmpty(s.treeID, PaddedBytes(index, s.hasher.Size()), height), nil
+	indexBytes := PaddedBytes(index, s.hasher.Size())
+	indexBytes = MaskIndex(indexBytes, depth)
+	return s.hasher.HashEmpty(s.treeID, indexBytes, height), nil
 }
 
 // set attempts to use setter if it not nil.
