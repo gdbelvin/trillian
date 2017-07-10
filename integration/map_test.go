@@ -16,13 +16,14 @@ package integration
 
 import (
 	"context"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"testing"
 
 	"github.com/google/trillian"
 	"github.com/google/trillian/merkle"
 	"github.com/google/trillian/merkle/hashers"
-	"github.com/google/trillian/testonly"
 	"github.com/google/trillian/testonly/integration"
 
 	stestonly "github.com/google/trillian/storage/testonly"
@@ -59,11 +60,28 @@ func TestInclusionWithEnv(t *testing.T) {
 		trillian.HashStrategy
 		index, value []byte
 	}{
+		/*
+			{
+				desc:         "maphasher",
+				HashStrategy: trillian.HashStrategy_TEST_MAP_HASHER,
+				index:        testonly.TransparentHash("A"),
+				value:        []byte("A"),
+			},
+			{
+				trillian.HashStrategy_CONIKS_SHA512_256,
+				h2b("0000000000000000000000000000000000000000000000000000000000000001"),
+				[]byte("A"),
+			},
+			{
+				trillian.HashStrategy_CONIKS_SHA512_256,
+				h2b("5555555555555555555555555555555555555555555555555555555555555555"),
+				[]byte("A"),
+			},
+		*/
 		{
-			desc:         "maphasher",
-			HashStrategy: trillian.HashStrategy_TEST_MAP_HASHER,
-			index:        testonly.TransparentHash("A"),
-			value:        []byte("A"),
+			trillian.HashStrategy_CONIKS_SHA512_256,
+			h2b("4100000000000000000000000000000000000000000000000000000000000000"),
+			[]byte("A"),
 		},
 	} {
 		treeParams := stestonly.MapTree
@@ -85,6 +103,7 @@ func TestInclusionWithEnv(t *testing.T) {
 		client := env.MapClient
 		leaves := createMapLeaves(tc.index, tc.value)
 
+		log.Printf("----------SET----------")
 		if _, err := client.SetLeaves(ctx, &trillian.SetMapLeavesRequest{
 			MapId:  mapID,
 			Leaves: leaves,
@@ -92,6 +111,8 @@ func TestInclusionWithEnv(t *testing.T) {
 			t.Errorf("%v: SetLeaves(): %v", tc.desc, err)
 			continue
 		}
+
+		log.Printf("----------GET----------")
 
 		indexes := [][]byte{}
 		for _, l := range leaves {
@@ -107,15 +128,30 @@ func TestInclusionWithEnv(t *testing.T) {
 			continue
 		}
 
+		log.Printf("----------VERIFY----------")
+
 		rootHash := getResp.GetMapRoot().GetRootHash()
 		for _, m := range getResp.GetMapLeafInclusion() {
 			index := m.GetLeaf().GetIndex()
 			leafHash := m.GetLeaf().GetLeafHash()
 			proof := m.GetInclusion()
+			log.Printf("Proof: ")
+			for i, e := range proof {
+				log.Printf("i:%d %x", i, e)
+			}
 			if err := merkle.VerifyMapInclusionProof(mapID, index,
 				leafHash, rootHash, proof, hasher); err != nil {
 				t.Errorf("%v: VerifyMapInclusionProof(): %v", tc.desc, err)
 			}
 		}
 	}
+}
+
+// h2b converts a hex string into []byte.
+func h2b(h string) []byte {
+	b, err := hex.DecodeString(h)
+	if err != nil {
+		panic("invalid hex string")
+	}
+	return b
 }
