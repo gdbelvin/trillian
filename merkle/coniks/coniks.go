@@ -20,8 +20,8 @@ import (
 	"crypto"
 	"encoding/binary"
 	"fmt"
-	"log"
 
+	"github.com/golang/glog"
 	"github.com/google/trillian"
 	"github.com/google/trillian/merkle"
 	"github.com/google/trillian/merkle/hashers"
@@ -67,7 +67,7 @@ func (m *hasher) HashEmpty(treeID int64, index []byte, height int) []byte {
 	h.Write(index)
 	binary.Write(h, binary.BigEndian, uint32(depth))
 	r := h.Sum(nil)
-	log.Printf("HashEmpty(%x, %d): %x", index, depth, r)
+	glog.V(5).Infof("HashEmpty(%x, %d): %x", index, depth, r)
 	if got, want := index, merkle.MaskIndex(index, depth); !bytes.Equal(got, want) {
 		panic(fmt.Sprintf("HashEmpty called with index: %x, want %x", got, want))
 	}
@@ -86,7 +86,7 @@ func (m *hasher) HashLeaf(treeID int64, index []byte, height int, leaf []byte) [
 	binary.Write(h, binary.BigEndian, uint32(depth))
 	h.Write(leaf)
 	p := h.Sum(nil)
-	log.Printf("HashLeaf(%x, %d, %s): %x", index, depth, leaf, p)
+	glog.V(5).Infof("HashLeaf(%x, %d, %s): %x", index, depth, leaf, p)
 	if got, want := index, merkle.MaskIndex(index, depth); !bytes.Equal(got, want) {
 		panic(fmt.Sprintf("HashLeaf called with index: %x, want %x", got, want))
 	}
@@ -100,7 +100,7 @@ func (m *hasher) HashChildren(l, r []byte) []byte {
 	h.Write(l)
 	h.Write(r)
 	p := h.Sum(nil)
-	log.Printf("HashChildren(%x, %x): %x", l, r, p)
+	glog.V(5).Infof("HashChildren(%x, %x): %x", l, r, p)
 	return p
 }
 

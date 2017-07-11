@@ -18,8 +18,8 @@ package maphasher
 import (
 	"crypto"
 	"fmt"
-	"log"
 
+	"github.com/golang/glog"
 	"github.com/google/trillian"
 	"github.com/google/trillian/merkle/hashers"
 )
@@ -65,7 +65,7 @@ func (m *MapHasher) HashEmpty(treeID int64, index []byte, height int) []byte {
 		panic(fmt.Sprintf("HashEmpty(%v) out of bounds", height))
 	}
 	depth := m.BitLen() - height
-	log.Printf("HashEmpty(%x, %d): %x", index, depth, m.nullHashes[height])
+	glog.V(5).Infof("HashEmpty(%x, %d): %x", index, depth, m.nullHashes[height])
 	return m.nullHashes[height]
 }
 
@@ -77,7 +77,7 @@ func (m *MapHasher) HashLeaf(treeID int64, index []byte, height int, leaf []byte
 	h.Write(leaf)
 	r := h.Sum(nil)
 	depth := m.BitLen() - height
-	log.Printf("HashEmpty(%x, %d): %x", index, depth, r)
+	glog.V(5).Infof("HashEmpty(%x, %d): %x", index, depth, r)
 	return r
 }
 
@@ -89,7 +89,7 @@ func (m *MapHasher) HashChildren(l, r []byte) []byte {
 	h.Write(l)
 	h.Write(r)
 	p := h.Sum(nil)
-	log.Printf("HashChildren(%x, %x): %x", l, r, p)
+	glog.V(5).Infof("HashChildren(%x, %x): %x", l, r, p)
 	return p
 }
 
