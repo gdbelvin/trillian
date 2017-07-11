@@ -68,20 +68,21 @@ func TestInclusionWithEnv(t *testing.T) {
 				value:        []byte("A"),
 			},
 			{
-				trillian.HashStrategy_CONIKS_SHA512_256,
-				h2b("0000000000000000000000000000000000000000000000000000000000000001"),
-				[]byte("A"),
+				HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
+				index: h2b("0000000000000000000000000000000000000000000000000000000000000001"),
+				value: []byte("A"),
 			},
 			{
-				trillian.HashStrategy_CONIKS_SHA512_256,
-				h2b("5555555555555555555555555555555555555555555555555555555555555555"),
-				[]byte("A"),
+				HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
+				index: h2b("5555555555555555555555555555555555555555555555555555555555555555"),
+				value: []byte("A"),
 			},
 		*/
 		{
-			trillian.HashStrategy_CONIKS_SHA512_256,
-			h2b("4100000000000000000000000000000000000000000000000000000000000000"),
-			[]byte("A"),
+			desc:         "CONIKS",
+			HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
+			index:        h2b("4100000000000000000000000000000000000000000000000000000000000000"),
+			value:        []byte("A"),
 		},
 	} {
 		treeParams := stestonly.MapTree
