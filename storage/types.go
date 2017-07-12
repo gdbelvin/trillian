@@ -191,7 +191,7 @@ func (n *NodeID) Siblings() []NodeID {
 	// Index of the bit to twiddle:
 	bi := n.PathLenBits - n.PrefixLenBits
 	for i := range r {
-		r[i].PrefixLenBits = l - i
+		r[i].PrefixLenBits = l - i // nodes should not have prefix, or should share the prefix of parent?
 		r[i].PathLenBits = n.PathLenBits
 		r[i].Path = make([]byte, len(n.Path))
 		copy(r[i].Path, n.Path)
