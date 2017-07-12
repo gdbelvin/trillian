@@ -81,28 +81,8 @@ func NewEmptyNodeID(maxLenBits int) NodeID {
 	return NodeID{
 		Path:          make([]byte, bytesForBits(maxLenBits)),
 		PrefixLenBits: 0,
-		PathLenBits:   maxLenBits,
+		PathLenBits:   0,
 	}
-}
-
-// NewNodeIDWithPrefix creates a new NodeID of nodeIDLen bits with the prefixLen MSBs set to prefix.
-func NewNodeIDWithPrefix(prefix uint64, prefixLenBits, nodeIDLenBits, maxLenBits int) NodeID {
-	maxLenBytes := bytesForBits(maxLenBits)
-	p := NodeID{
-		Path:          make([]byte, maxLenBytes),
-		PrefixLenBits: nodeIDLenBits,
-		PathLenBits:   maxLenBits,
-	}
-
-	bit := maxLenBits - prefixLenBits
-	for i := 0; i < prefixLenBits; i++ {
-		if prefix&1 != 0 {
-			p.SetBit(bit, 1)
-		}
-		bit++
-		prefix >>= 1
-	}
-	return p
 }
 
 func bitLen(x int64) int {
@@ -114,35 +94,37 @@ func bitLen(x int64) int {
 	return r
 }
 
-// NewNodeIDForTreeCoords creates a new NodeID for a Tree node with a specified depth and
-// index.
-// This method is used exclusively by the Log, and, since the Log model grows upwards from the
-// leaves, we modify the provided coords accordingly.
+// NewNodeIDForTreeCoords creates a new NodeID for a Tree node with a specified
+// height and index.  This method is used exclusively by the Log, and, since
+// the Log model grows upwards from the leaves, we modify the provided coords
+// accordingly.
 //
-// depth is the Merkle tree level: 0 = leaves, and increases upwards towards the root.
+// height is the Merkle tree level: 0 = leaves, and increases upwards towards
+// the root.
 //
-// index is the horizontal index into the tree at level depth, so the returned
-// NodeID will be zero padded on the right by depth places.
-func NewNodeIDForTreeCoords(depth int64, index int64, maxPathBits int) (NodeID, error) {
+// index is the horizontal index into the tree at level height, so the returned
+// NodeID will be zero padded on the right by height places.
+func NewNodeIDForTreeCoords(height, index int64, maxPathBits int) (NodeID, error) {
 	bl := bitLen(index)
-	if index < 0 || depth < 0 || bl > int(maxPathBits-int(depth)) {
-		return NodeID{}, fmt.Errorf("depth/index combination out of range: depth=%d index=%d", depth, index)
+	if index < 0 || height < 0 || bl > int(maxPathBits-int(height)) {
+		return NodeID{}, fmt.Errorf("height/index combination out of range: height=%d index=%d", height, index)
 	}
 	// This node is effectively a prefix of the subtree underneath (for non-leaf
-	// depths), so we shift the index accordingly.
-	uidx := uint64(index) << uint(depth)
+	// heights), so we shift the index accordingly.
+	uidx := uint64(index) << uint(height)
 	r := NewEmptyNodeID(maxPathBits)
 	for i := len(r.Path) - 1; uidx > 0 && i >= 0; i-- {
 		r.Path[i] = byte(uidx & 0xff)
 		uidx >>= 8
 	}
 	// In the storage model nodes closer to the leaves have longer nodeIDs, so
-	// we "reverse" depth here:
-	r.PrefixLenBits = int(maxPathBits - int(depth))
+	// we "reverse" height here:
+	r.PrefixLenBits = int(maxPathBits - int(height))
 	return r, nil
 }
 
 // SetBit sets the ith bit to true if b is non-zero, and false otherwise.
+// i is the number of bits from the right (LSB).
 func (n *NodeID) SetBit(i int, b uint) {
 	// TODO(al): investigate whether having lookup tables for these might be
 	// faster.
@@ -155,6 +137,7 @@ func (n *NodeID) SetBit(i int, b uint) {
 }
 
 // Bit returns 1 if the ith bit is true, and false otherwise.
+// i is the number of bits from the right (LSB).
 func (n *NodeID) Bit(i int) uint {
 	bIndex := (n.PathLenBits - i - 1) / 8
 	return uint((n.Path[bIndex] >> uint(i%8)) & 0x01)
@@ -164,8 +147,8 @@ func (n *NodeID) Bit(i int) uint {
 // The left-most bit is the MSB (i.e. nearer the root of the tree).
 func (n *NodeID) String() string {
 	var r bytes.Buffer
-	limit := n.PathLenBits - n.PrefixLenBits
-	for i := n.PathLenBits - 1; i >= limit; i-- {
+	// Print the bits from MSB to LSB.
+	for i := n.PathLenBits - 1; i >= 0; i-- {
 		r.WriteRune(rune('0' + n.Bit(i)))
 	}
 	return r.String()

@@ -19,91 +19,86 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+
+	"github.com/google/trillian/node"
 )
 
 func TestNewNodeIDWithPrefix(t *testing.T) {
 	for _, tc := range []struct {
-		input     uint64
-		inputLen  int
-		prefixLen int
-		indexLen  int
-		want      []byte
+		input    []byte
+		inputLen int
+		pathLen  int
+		maxLen   int
+		want     []byte
 	}{
 		{
-			input:     0,
-			inputLen:  0,
-			prefixLen: 0,
-			indexLen:  64,
-			want:      h2b("0000000000000000"),
+			input:    h2b(""),
+			inputLen: 0,
+			pathLen:  0,
+			maxLen:   64,
+			want:     h2b("0000000000000000"),
 		},
 		{
-			input:     0x12345678,
-			inputLen:  32,
-			prefixLen: 32,
-			indexLen:  64,
-			want:      h2b("1234567800000000"),
+			input:    h2b("12345678"),
+			inputLen: 32,
+			pathLen:  32,
+			maxLen:   64,
+			want:     h2b("1234567800000000"),
 		},
 		{
-			input:     0x345678,
-			inputLen:  15,
-			prefixLen: 15,
-			indexLen:  24,
-			want:      h2b("acf000"), // bottom 15 bits of 0x345678 are: 1010 1100 1111 000x
+			input:    h2b("345678"),
+			inputLen: 15,
+			pathLen:  15,
+			maxLen:   24,
+			want:     h2b("345600"), // top 15 bits of 0x345678 are: 0101 0110 0111 1000
 		},
 	} {
-		n := NewNodeIDWithPrefix(tc.input, tc.inputLen, tc.prefixLen, tc.indexLen)
+		n := NewNodeIDWithPrefix(tc.input, tc.inputLen, tc.pathLen, tc.maxLen)
 		if got, want := n.Path, tc.want; !bytes.Equal(got, want) {
-			t.Errorf("NewNodeIDWithPrefix(%x, %v, %v, %v).Path: %x, want %x", got, want)
+			t.Errorf("NewNodeIDWithPrefix(%x, %v, %v, %v).Path: %x, want %x",
+				tc.input, tc.inputLen, tc.pathLen, tc.maxLen, got, want)
 		}
 	}
 
 }
 
-var nodeIDForTreeCoordsVec = []struct {
-	depth      int64
-	index      int64
-	maxBits    int
-	shouldFail bool
-	expected   string
-}{
-	{0, 0x00, 8, false, "00000000"},
-	{0, 0x01, 8, false, "00000001"},
-	{0, 0x01, 15, false, "000000000000001"},
-	{1, 0x01, 8, false, "0000001"},
-	{2, 0x04, 8, false, "000100"},
-	{8, 0x01, 16, false, "00000001"},
-	{8, 0x01, 9, false, "1"},
-	{0, 0x80, 8, false, "10000000"},
-	{0, 0x01, 64, false, "0000000000000000000000000000000000000000000000000000000000000001"},
-	{63, 0x01, 64, false, "1"},
-	{63, 0x02, 64, true, "index of 0x02 is too large for given depth"},
-}
-
 func TestNewNodeIDForTreeCoords(t *testing.T) {
-	for i, v := range nodeIDForTreeCoordsVec {
+	for i, v := range []struct {
+		depth      int64
+		index      int64
+		maxBits    int
+		shouldFail bool
+		expected   string
+	}{
+		{0, 0x00, 8, false, "00000000"},
+		{0, 0x01, 8, false, "00000001"},
+		{0, 0x01, 15, false, "000000000000001"},
+		{1, 0x01, 8, false, "0000001"},
+		{2, 0x04, 8, false, "000100"},
+		{8, 0x01, 16, false, "00000001"},
+		{8, 0x01, 9, false, "1"},
+		{0, 0x80, 8, false, "10000000"},
+		{0, 0x01, 64, false, "0000000000000000000000000000000000000000000000000000000000000001"},
+		{63, 0x01, 64, false, "1"},
+		{63, 0x02, 64, true, "index of 0x02 is too large for given depth"},
+	} {
 		n, err := NewNodeIDForTreeCoords(v.depth, v.index, v.maxBits)
 
-		switch {
-		case err != nil && v.shouldFail:
-			// pass
-			continue
-		case err == nil && !v.shouldFail:
-			if got, want := n.String(), v.expected; got != want {
-				t.Errorf("(test vector index %d) Expected '%s', got '%s', %v", i, want, got, err)
-			}
-		case err != nil && v.shouldFail:
-			t.Errorf("unexpectedly created a node ID for test vector entry %d, should've failed because %s", i, v.expected)
-			continue
-		case err == nil && !v.shouldFail:
-			t.Errorf("failed to create nodeID for test vector entry %d: %v", i, err)
+		if got, want := err != nil, v.shouldFail; got != want {
+			t.Errorf("%v: NewNodeIDForTreeCoords(): %v, want failure: %v", i, err, want)
 			continue
 		}
-
+		if err != nil {
+			continue
+		}
+		if got, want := n.String(), v.expected; got != want {
+			t.Errorf("(test vector index %d) Expected '%s', got '%s', %v", i, want, got, err)
+		}
 	}
 }
 
 func TestSetBit(t *testing.T) {
-	n := NewNodeIDWithPrefix(0, 0, 0, 64)
+	n := NewNodeIDWithPrefix(h2b(""), 0, 0, 64)
 	n.SetBit(27, 1)
 	if got, want := n.Path, []byte{0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00}; !bytes.Equal(got, want) {
 		t.Fatalf("Expected Path of %v, but got %v", want, got)
@@ -117,7 +112,7 @@ func TestSetBit(t *testing.T) {
 
 func TestBit(t *testing.T) {
 	// every 3rd bit set
-	n := NewNodeIDWithPrefix(0x9249, 16, 16, 16)
+	n := NewNodeIDWithPrefix(h2b("9249"), 16, 16, 16)
 	for x := 0; x < 16; x++ {
 		want := 0
 		if x%3 == 0 {
@@ -130,7 +125,7 @@ func TestBit(t *testing.T) {
 }
 
 func TestString(t *testing.T) {
-	for _, tc := range []struct {
+	for i, tc := range []struct {
 		n    NodeID
 		want string
 	}{
@@ -139,37 +134,37 @@ func TestString(t *testing.T) {
 			want: "",
 		},
 		{
-			n:    NewNodeIDWithPrefix(0x345678, 24, 32, 32),
+			n:    NewNodeIDWithPrefix(h2b("345678"), 24, 32, 32),
 			want: "00110100010101100111100000000000",
 		},
 		{
-			n:    NewNodeIDWithPrefix(0x12345678, 32, 32, 64),
+			n:    NewNodeIDWithPrefix(h2b("12345678"), 32, 32, 64),
 			want: "00010010001101000101011001111000",
 		},
 		{
-			n:    NewNodeIDWithPrefix(0x345678, 15, 15, 24),
-			want: fmt.Sprintf("%015b", 0x345678&0x7fff),
+			n:    NewNodeIDWithPrefix(h2b("345678"), 15, 15, 24),
+			want: fmt.Sprintf("%015b", 0x3456),
 		},
 	} {
 		if got, want := tc.n.String(), tc.want; got != want {
-			t.Errorf("%v: String():  %v,  want %v'", got, want)
+			t.Errorf("%v: String():  %v,  want '%v'", i, got, want)
 		}
 	}
 }
 
 func TestSiblings(t *testing.T) {
 	for _, tc := range []struct {
-		input     uint64
-		inputLen  int
-		prefixLen int
-		indexLen  int
-		want      []string
+		input    []byte
+		inputLen int
+		pathLen  int
+		maxLen   int
+		want     []string
 	}{
 		{
-			input:     0xabe4,
-			inputLen:  16,
-			prefixLen: 16,
-			indexLen:  16,
+			input:    h2b("abe4"),
+			inputLen: 16,
+			pathLen:  16,
+			maxLen:   16,
 			want: []string{"1010101111100101",
 				"101010111110011",
 				"10101011111000",
@@ -188,7 +183,7 @@ func TestSiblings(t *testing.T) {
 				"0"},
 		},
 	} {
-		n := NewNodeIDWithPrefix(tc.input, tc.inputLen, tc.prefixLen, tc.indexLen)
+		n := NewNodeIDWithPrefix(tc.input, tc.inputLen, tc.pathLen, tc.maxLen)
 		sibs := n.Siblings()
 		if got, want := len(sibs), len(tc.want); got != want {
 			t.Errorf("Got %d siblings, want %d", got, want)
@@ -205,7 +200,7 @@ func TestSiblings(t *testing.T) {
 
 func TestNodeEquivalent(t *testing.T) {
 	l := 16
-	na := NewNodeIDWithPrefix(0x1234, l, l, l)
+	na := NewNodeIDWithPrefix(h2b("1234"), l, l, l)
 	for _, tc := range []struct {
 		n1, n2 NodeID
 		want   bool
@@ -218,32 +213,32 @@ func TestNodeEquivalent(t *testing.T) {
 		},
 		{
 			// Equal
-			n1:   NewNodeIDWithPrefix(0x1234, l, l, l),
-			n2:   NewNodeIDWithPrefix(0x1234, l, l, l),
+			n1:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
+			n2:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
 			want: true,
 		},
 		{
 			// Different PrefixLen
-			n1:   NewNodeIDWithPrefix(0x1234, l, l, l),
-			n2:   NewNodeIDWithPrefix(0x1234, l-1, l, l),
+			n1:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
+			n2:   NewNodeIDWithPrefix(h2b("1234"), l-1, l, l),
 			want: false,
 		},
 		{
 			// Different IDLen
-			n1:   NewNodeIDWithPrefix(0x1234, l, l, l),
-			n2:   NewNodeIDWithPrefix(0x1234, l, l+1, l+1),
+			n1:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
+			n2:   NewNodeIDWithPrefix(h2b("1234"), l, l+1, l+1),
 			want: false,
 		},
 		{
 			// Different Prefix
-			n1:   NewNodeIDWithPrefix(0x1234, l, l, l),
-			n2:   NewNodeIDWithPrefix(0x5432, l, l, l),
+			n1:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
+			n2:   NewNodeIDWithPrefix(h2b("5432"), l, l, l),
 			want: false,
 		},
 		{
 			// Different max len, but that's ok because the prefixes are identical
-			n1:   NewNodeIDWithPrefix(0x1234, l, l, l),
-			n2:   NewNodeIDWithPrefix(0x1234, l, l, l*2),
+			n1:   NewNodeIDWithPrefix(h2b("1234"), l, l, l),
+			n2:   NewNodeIDWithPrefix(h2b("1234"), l, l, l*2),
 			want: true,
 		},
 	} {
@@ -276,4 +271,20 @@ func h2b(h string) []byte {
 		panic("invalid hex string")
 	}
 	return b
+}
+
+// NewNodeIDWithPrefix creates a new NodeID of nodeIDLen bits with the prefixLen MSBs set to prefix.
+func NewNodeIDWithPrefix(prefix []byte, prefixBits, pathBits, maxBits int) NodeID {
+	path := make([]byte, bytesForBits(maxBits))
+
+	// Copy prefixBits of prefix into path.
+	pfx := node.Prefix(prefix, len(prefix)*8, prefixBits)
+	copy(path, pfx)
+
+	return NodeID{
+		Path:          path,
+		PrefixLenBits: prefixBits,
+		PathLenBits:   pathBits,
+	}
+
 }
