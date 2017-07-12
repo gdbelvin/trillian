@@ -16,9 +16,12 @@
 package mysql
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 
@@ -183,6 +186,10 @@ func (t *treeTX) getSubtree(ctx context.Context, treeRevision int64, nodeID stor
 }
 
 func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []storage.NodeID) ([]*storagepb.SubtreeProto, error) {
+	log.Printf("getSubtrees(%v, ", treeRevision)
+	for _, n := range nodeIDs {
+		log.Printf("  %x, %d, %d", n.Path, n.PrefixLenBits, n.PathLenBits)
+	}
 	if len(nodeIDs) == 0 {
 		return nil, nil
 	}
@@ -203,6 +210,7 @@ func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []
 		}
 
 		nodeIDBytes := nodeID.Path[:nodeID.PrefixLenBits/8]
+		//log.Printf("nodeID: %x", nodeIDBytes)
 
 		args = append(args, interface{}(nodeIDBytes))
 	}
@@ -244,6 +252,17 @@ func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []
 			subtree.Prefix = []byte{}
 		}
 		ret = append(ret, &subtree)
+
+		if got, want := subtree.Prefix, subtreeIDBytes; !bytes.Equal(got, want) {
+			panic(fmt.Sprintf("mysql: getSubtrees(): subtree %x was stored at %x", got, want))
+		}
+
+		log.Printf("  subtree: NID: %x, prefix: %x, depth: %d",
+			subtreeIDBytes, subtree.Prefix, subtree.Depth)
+		for k, v := range subtree.Leaves {
+			b, _ := base64.StdEncoding.DecodeString(k)
+			log.Printf("     %x: %x", b, v)
+		}
 	}
 
 	// The InternalNodes cache is possibly nil here, but the SubtreeCache (which called
@@ -252,6 +271,14 @@ func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []
 }
 
 func (t *treeTX) storeSubtrees(ctx context.Context, subtrees []*storagepb.SubtreeProto) error {
+	log.Printf("storeSubtrees(")
+	for _, s := range subtrees {
+		log.Printf("  prefix: %x, depth: %d", s.Prefix, s.Depth)
+		for k, v := range s.Leaves {
+			b, _ := base64.StdEncoding.DecodeString(k)
+			log.Printf("     %x: %x", b, v)
+		}
+	}
 	if len(subtrees) == 0 {
 		glog.Warning("attempted to store 0 subtrees...")
 		return nil

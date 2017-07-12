@@ -138,7 +138,9 @@ func TestInclusionWithEnv(t *testing.T) {
 			proof := m.GetInclusion()
 			log.Printf("Proof: ")
 			for i, e := range proof {
-				log.Printf("i:%d %x", i, e)
+				if len(e) != 0 {
+					log.Printf("i:%d %x", i, e)
+				}
 			}
 			if err := merkle.VerifyMapInclusionProof(mapID, index,
 				leafHash, rootHash, proof, hasher); err != nil {

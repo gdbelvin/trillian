@@ -250,8 +250,9 @@ func (s *subtreeWriter) buildSubtree(ctx context.Context) {
 	addressSize := s.hasher.BitLen()
 	root, err := hs2.HStar2Nodes(s.prefix, s.subtreeDepth, leaves,
 		func(depth int, index *big.Int) ([]byte, error) {
-			log.Printf("Get(%x, %d)", index.Bytes(), depth)
 			nodeID := nodeIDFromAddress(addressSize, nil, index, depth)
+			log.Printf("Get(%x, %d) -> %x, %d, %d", index.Bytes(), depth,
+				nodeID.Path, nodeID.PrefixLenBits, nodeID.PathLenBits)
 			nodes, err := s.tx.GetMerkleNodes(ctx, s.treeRevision, []storage.NodeID{nodeID})
 			if err != nil {
 				return nil, err
@@ -407,7 +408,7 @@ func (s SparseMerkleTreeReader) InclusionProof(ctx context.Context, rev int64, i
 	sibs := nid.Siblings()
 	log.Printf("Siblings: ")
 	for _, s := range sibs {
-		log.Printf("   %x", s.Path)
+		log.Printf("   %x, %d, %d", s.Path, s.PrefixLenBits, s.PathLenBits)
 	}
 	nodes, err := s.tx.GetMerkleNodes(ctx, rev, sibs)
 	if err != nil {

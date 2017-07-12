@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"math/big"
 	"sync"
 
@@ -228,6 +229,10 @@ func (s *SubtreeCache) preload(ids []storage.NodeID, getSubtrees GetSubtreesFunc
 // GetNodes returns the requested nodes, calling the getSubtrees function if
 // they are not already cached.
 func (s *SubtreeCache) GetNodes(ids []storage.NodeID, getSubtrees GetSubtreesFunc) ([]storage.Node, error) {
+	log.Printf("GetNodes(%d, ")
+	for _, n := range ids {
+		log.Printf("  %x, %d, %d", n.Path, n.PrefixLenBits, n.PathLenBits)
+	}
 	if err := s.preload(ids, getSubtrees); err != nil {
 		return nil, err
 	}
@@ -276,6 +281,7 @@ func (s *SubtreeCache) getNodeHashUnderLock(id storage.NodeID, getSubtree GetSub
 	prefixKey := fmt.Sprintf("%x", px)
 	c := s.subtrees[prefixKey]
 	if c == nil {
+		log.Printf("Cache miss for %x so we'll try to fetch from storage", prefixKey)
 		// Cache miss, so we'll try to fetch from storage.
 		subID := id
 		subID.PrefixLenBits = len(px) * depthQuantum // this won't work if depthQuantum changes
@@ -313,6 +319,7 @@ func (s *SubtreeCache) getNodeHashUnderLock(id storage.NodeID, getSubtree GetSub
 	} else {
 		nh = c.InternalNodes[sx.serialize()]
 	}
+	log.Printf("getNodeHashL(%x, %d): %s | %x", id.Path, id.PathLenBits, prefixKey, nh)
 	if nh == nil {
 		return nil, nil
 	}
