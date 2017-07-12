@@ -17,6 +17,7 @@ package cache
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"sync"
@@ -177,7 +178,8 @@ func (s *SubtreeCache) preload(ids []storage.NodeID, getSubtrees GetSubtreesFunc
 	for _, id := range ids {
 		id := id
 		px, _ := s.splitNodeID(id)
-		pxKey := string(px)
+		// XXX What if the prefix contains a null byte?
+		pxKey := fmt.Sprintf("%x", px)
 		_, ok := s.subtrees[pxKey]
 		// TODO(al): fix for non-uniform strata
 		id.PrefixLenBits = len(px) * depthQuantum
@@ -201,8 +203,8 @@ func (s *SubtreeCache) preload(ids []storage.NodeID, getSubtrees GetSubtreesFunc
 	}
 	for _, t := range subtrees {
 		s.populate(t)
-		s.subtrees[string(t.Prefix)] = t
-		delete(want, string(t.Prefix))
+		s.subtrees[fmt.Sprintf("%x", t.Prefix)] = t
+		delete(want, fmt.Sprintf("%x", t.Prefix))
 	}
 
 	// We might not have got all the subtrees we requested, if they don't already exist.
@@ -212,7 +214,7 @@ func (s *SubtreeCache) preload(ids []storage.NodeID, getSubtrees GetSubtreesFunc
 	for _, id := range want {
 		prefixLen := id.PrefixLenBits / depthQuantum
 		px := id.Path[:prefixLen]
-		pxKey := string(px)
+		pxKey := fmt.Sprintf("%x", px)
 		_, exists := s.subtrees[pxKey]
 		if exists {
 			return fmt.Errorf("preload tried to clobber existing subtree for: %v", *id)
@@ -271,7 +273,7 @@ func (s *SubtreeCache) GetNodeHash(id storage.NodeID, getSubtree GetSubtreeFunc)
 // getNodeHashUnderLock must be called with s.mutex locked.
 func (s *SubtreeCache) getNodeHashUnderLock(id storage.NodeID, getSubtree GetSubtreeFunc) ([]byte, error) {
 	px, sx := s.splitNodeID(id)
-	prefixKey := string(px)
+	prefixKey := fmt.Sprintf("%x", px)
 	c := s.subtrees[prefixKey]
 	if c == nil {
 		// Cache miss, so we'll try to fetch from storage.
@@ -322,7 +324,7 @@ func (s *SubtreeCache) SetNodeHash(id storage.NodeID, h []byte, getSubtree GetSu
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	px, sx := s.splitNodeID(id)
-	prefixKey := string(px)
+	prefixKey := fmt.Sprintf("%x", px)
 	c := s.subtrees[prefixKey]
 	if c == nil {
 		// TODO(al): This is ok, IFF *all* leaves in the subtree are being set,
@@ -362,7 +364,7 @@ func (s *SubtreeCache) Flush(setSubtrees SetSubtreesFunc) error {
 	treesToWrite := make([]*storagepb.SubtreeProto, 0, len(s.dirtyPrefixes))
 	for k, v := range s.subtrees {
 		if s.dirtyPrefixes[k] {
-			bk := []byte(k)
+			bk, _ := hex.DecodeString(k)
 			if !bytes.Equal(bk, v.Prefix) {
 				return fmt.Errorf("inconsistent cache: prefix key is %v, but cached object claims %v", bk, v.Prefix)
 			}
