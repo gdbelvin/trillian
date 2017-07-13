@@ -97,7 +97,7 @@ func (s *HStar2) HStar2Nodes(prefix []byte, subtreeDepth int, values []HStar2Lea
 // hStar2b computes a sparse Merkle tree root value recursively.
 func (s *HStar2) hStar2b(depth, maxDepth int, values []HStar2LeafHash, offset *big.Int,
 	get SparseGetNodeFunc, set SparseSetNodeFunc) ([]byte, error) {
-	log.Printf("hStar2b(%x, %3v, %3v, %2d values)", offset.Bytes(), depth, maxDepth, len(values))
+	//log.Printf("hStar2b(%x, %3v, %3v, %2d values)", offset.Bytes(), depth, maxDepth, len(values))
 	if depth == maxDepth {
 		switch {
 		case len(values) == 0:
