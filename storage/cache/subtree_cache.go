@@ -97,6 +97,7 @@ func (s Suffix) serialize() string {
 	r := make([]byte, 1, 1+(len(s.path)))
 	r[0] = s.bits
 	r = append(r, s.path...)
+	//return hex.EncodeToString(r)
 	return base64.StdEncoding.EncodeToString(r)
 }
 
@@ -229,9 +230,8 @@ func (s *SubtreeCache) preload(ids []storage.NodeID, getSubtrees GetSubtreesFunc
 // GetNodes returns the requested nodes, calling the getSubtrees function if
 // they are not already cached.
 func (s *SubtreeCache) GetNodes(ids []storage.NodeID, getSubtrees GetSubtreesFunc) ([]storage.Node, error) {
-	log.Printf("GetNodes(")
 	for _, n := range ids {
-		log.Printf("  %x, %d, %d", n.Path, n.PrefixLenBits)
+		log.Printf("cache: GetNodes(%x, %d", n.Path, n.PrefixLenBits)
 	}
 	if err := s.preload(ids, getSubtrees); err != nil {
 		return nil, err
@@ -319,7 +319,8 @@ func (s *SubtreeCache) getNodeHashUnderLock(id storage.NodeID, getSubtree GetSub
 	} else {
 		nh = c.InternalNodes[sx.serialize()]
 	}
-	log.Printf("getNodeHashL(%x, %d): %s | %x", id.Path, id.PrefixLenBits, prefixKey, nh)
+	b, _ := base64.StdEncoding.DecodeString(sx.serialize())
+	log.Printf("getNodeHashL(%s | %x): %x", prefixKey, b, nh)
 	if nh == nil {
 		return nil, nil
 	}
@@ -360,6 +361,8 @@ func (s *SubtreeCache) SetNodeHash(id storage.NodeID, h []byte, getSubtree GetSu
 	} else {
 		c.InternalNodes[sx.serialize()] = h
 	}
+	b, _ := base64.StdEncoding.DecodeString(sx.serialize())
+	log.Printf("setNodeHashL(%s | %x): %x", prefixKey, b, h)
 	return nil
 }
 
@@ -417,6 +420,7 @@ func makeSuffixKey(depth int, index int64) (string, error) {
 	if index < 0 {
 		return "", fmt.Errorf("invalid negative index %d", index)
 	}
+	// TODO(gdbelvin): XXX is byte(int64) valid???
 	sfx := Suffix{byte(depth), []byte{byte(index)}}
 	return sfx.serialize(), nil
 }
@@ -437,7 +441,7 @@ func PopulateMapSubtreeNodes(treeID int64, hasher hashers.MapHasher) storage.Pop
 			if k[0]%depthQuantum != 0 {
 				return fmt.Errorf("unexpected non-leaf suffix found: %x", k)
 			}
-			index := big.NewInt(int64(k[1]))
+			index := big.NewInt(int64(k[1])) // TODO(gbelvin): only one byte?
 			index = index.Lsh(index, uint(hasher.BitLen()-8))
 			leaves = append(leaves, merkle.HStar2LeafHash{
 				Index:    index,
@@ -452,6 +456,8 @@ func PopulateMapSubtreeNodes(treeID int64, hasher hashers.MapHasher) storage.Pop
 				if err != nil {
 					return err
 				}
+				b, _ := base64.StdEncoding.DecodeString(sfx)
+				log.Printf("PopulateMapSubtreeNodes %x, %d -> %x: %x", index.Bytes(), depth, b, h)
 				st.InternalNodes[sfx] = h
 				return nil
 			})

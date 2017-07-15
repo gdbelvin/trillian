@@ -187,9 +187,6 @@ func (t *treeTX) getSubtree(ctx context.Context, treeRevision int64, nodeID stor
 
 func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []storage.NodeID) ([]*storagepb.SubtreeProto, error) {
 	log.Printf("getSubtrees(%v, ", treeRevision)
-	for _, n := range nodeIDs {
-		log.Printf("  %x, %d, %d", n.Path, n.PrefixLenBits, n.PathLenBits)
-	}
 	if len(nodeIDs) == 0 {
 		return nil, nil
 	}
@@ -210,7 +207,7 @@ func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []
 		}
 
 		nodeIDBytes := nodeID.Path[:nodeID.PrefixLenBits/8]
-		//log.Printf("nodeID: %x", nodeIDBytes)
+		log.Printf("  nodeID: %x", nodeIDBytes)
 
 		args = append(args, interface{}(nodeIDBytes))
 	}
@@ -261,7 +258,7 @@ func (t *treeTX) getSubtrees(ctx context.Context, treeRevision int64, nodeIDs []
 			subtreeIDBytes, subtree.Prefix, subtree.Depth)
 		for k, v := range subtree.Leaves {
 			b, _ := base64.StdEncoding.DecodeString(k)
-			log.Printf("     %x: %x", b, v)
+			log.Printf("     %s: %x", b, v)
 		}
 	}
 
