@@ -451,11 +451,12 @@ func PopulateMapSubtreeNodes(treeID int64, hasher hashers.MapHasher) storage.Pop
 		hs2 := merkle.NewHStar2(treeID, hasher)
 		root, err := hs2.HStar2Nodes(st.Prefix, int(st.Depth), leaves, nil,
 			func(depth int, index *big.Int, h []byte) error {
-				i := index.Int64()
-				sfx, err := makeSuffixKey(depth, i)
-				if err != nil {
-					return err
-				}
+				// TODO(gdbelvin): index is now the full path.
+				// suffix is the internal path, should it be split?
+				sfx := Suffix{
+					bits: byte(depth),
+					path: index.Bytes(),
+				}.serialize()
 				b, _ := base64.StdEncoding.DecodeString(sfx)
 				log.Printf("PopulateMapSubtreeNodes %x, %d -> %x: %x", index.Bytes(), depth, b, h)
 				st.InternalNodes[sfx] = h
