@@ -24,6 +24,7 @@ import (
 	"github.com/google/trillian"
 	"github.com/google/trillian/merkle"
 	"github.com/google/trillian/merkle/hashers"
+	"github.com/google/trillian/testonly"
 	"github.com/google/trillian/testonly/integration"
 
 	stestonly "github.com/google/trillian/storage/testonly"
@@ -60,24 +61,22 @@ func TestInclusionWithEnv(t *testing.T) {
 		trillian.HashStrategy
 		index, value []byte
 	}{
-		/*
-			{
-				desc:         "maphasher",
-				HashStrategy: trillian.HashStrategy_TEST_MAP_HASHER,
-				index:        testonly.TransparentHash("A"),
-				value:        []byte("A"),
-			},
-			{
-				HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
-				index: h2b("0000000000000000000000000000000000000000000000000000000000000001"),
-				value: []byte("A"),
-			},
-			{
-				HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
-				index: h2b("5555555555555555555555555555555555555555555555555555555555555555"),
-				value: []byte("A"),
-			},
-		*/
+		{
+			desc:         "maphasher",
+			HashStrategy: trillian.HashStrategy_TEST_MAP_HASHER,
+			index:        testonly.TransparentHash("A"),
+			value:        []byte("A"),
+		},
+		{
+			HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
+			index:        h2b("0000000000000000000000000000000000000000000000000000000000000001"),
+			value:        []byte("A"),
+		},
+		{
+			HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
+			index:        h2b("5555555555555555555555555555555555555555555555555555555555555555"),
+			value:        []byte("A"),
+		},
 		{
 			desc:         "CONIKS",
 			HashStrategy: trillian.HashStrategy_CONIKS_SHA512_256,
