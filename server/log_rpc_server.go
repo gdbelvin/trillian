@@ -89,6 +89,7 @@ func (t *TrillianLogRPCServer) IsHealthy() error {
 
 // QueueLeaf submits one leaf to the queue.
 func (t *TrillianLogRPCServer) QueueLeaf(ctx context.Context, req *trillian.QueueLeafRequest) (*trillian.QueueLeafResponse, error) {
+	glog.Infof("QueueLeaf %v", req)
 	ctx, spanEnd := spanFor(ctx, "QueueLeaf")
 	defer spanEnd()
 	if err := validateLogLeaf(req.Leaf, "QueueLeafRequest.Leaf"); err != nil {
@@ -123,6 +124,7 @@ func hashLeaves(leaves []*trillian.LogLeaf, hasher hashers.LogHasher) {
 
 // QueueLeaves submits a batch of leaves to the log for later integration into the underlying tree.
 func (t *TrillianLogRPCServer) QueueLeaves(ctx context.Context, req *trillian.QueueLeavesRequest) (*trillian.QueueLeavesResponse, error) {
+	glog.Infof("QueueLeaves %v", req)
 	ctx, spanEnd := spanFor(ctx, "QueueLeaves")
 	defer spanEnd()
 	if err := validateLogLeaves(req.Leaves, "QueueLeavesRequest"); err != nil {
@@ -158,6 +160,7 @@ func (t *TrillianLogRPCServer) QueueLeaves(ctx context.Context, req *trillian.Qu
 
 // AddSequencedLeaf submits one sequenced leaf to the storage.
 func (t *TrillianLogRPCServer) AddSequencedLeaf(ctx context.Context, req *trillian.AddSequencedLeafRequest) (*trillian.AddSequencedLeafResponse, error) {
+	glog.Infof("AddSequencedLeaf %v", req)
 	ctx, spanEnd := spanFor(ctx, "AddSequencedLeaf")
 	defer spanEnd()
 	if err := validateLogLeaf(req.Leaf, "AddSequencedLeafRequest.Leaf"); err != nil {
@@ -184,6 +187,8 @@ func (t *TrillianLogRPCServer) AddSequencedLeaf(ctx context.Context, req *trilli
 // AddSequencedLeaves submits a batch of sequenced leaves to a pre-ordered log
 // for later integration into its underlying tree.
 func (t *TrillianLogRPCServer) AddSequencedLeaves(ctx context.Context, req *trillian.AddSequencedLeavesRequest) (*trillian.AddSequencedLeavesResponse, error) {
+	glog.Infof("AddSequencedLeavse %v", req)
+
 	ctx, spanEnd := spanFor(ctx, "AddSequencedLeaves")
 	defer spanEnd()
 	if err := validateAddSequencedLeavesRequest(req); err != nil {
@@ -758,6 +763,7 @@ func (t *TrillianLogRPCServer) getTreeAndContext(ctx context.Context, treeID int
 // InitLog initialises a freshly created Log by creating the first STH with
 // size 0.
 func (t *TrillianLogRPCServer) InitLog(ctx context.Context, req *trillian.InitLogRequest) (*trillian.InitLogResponse, error) {
+	glog.Infof("InitLog %v", req)
 	ctx, spanEnd := spanFor(ctx, "InitLog")
 	defer spanEnd()
 	logID := req.LogId

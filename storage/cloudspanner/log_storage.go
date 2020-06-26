@@ -289,6 +289,7 @@ func (ls *logStorage) QueueLeaves(ctx context.Context, tree *trillian.Tree, leav
 }
 
 func (ls *logStorage) AddSequencedLeaves(ctx context.Context, tree *trillian.Tree, leaves []*trillian.LogLeaf, ts time.Time) ([]*trillian.QueuedLogLeaf, error) {
+	glog.Infof("AddSequencedLeaves(treeID: %d, %d leaves)", tree.TreeId, len(leaves))
 	ctx, span := trace.StartSpan(ctx, "AddSequencedLeaves")
 	defer span.End()
 
@@ -662,8 +663,6 @@ func (tx *logTX) DequeueLeaves(ctx context.Context, limit int, cutoff time.Time)
 	}); err != nil && err != errBreak {
 		return nil, err
 	}
-	glog.Infof("Dequeued %v leaves", len(ret))
-
 	return ret, nil
 }
 
