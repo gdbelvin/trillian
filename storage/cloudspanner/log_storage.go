@@ -350,13 +350,18 @@ func (ls *logStorage) AddSequencedLeaves(ctx context.Context, tree *trillian.Tre
 				}
 			}
 		}
+		glog.Infof("AddSequencedLeaves() before writeSem.Acquire)")
 		if err := ls.writeSem.Acquire(ctx, 1); err != nil {
+			glog.Errorf("Failed to aquire write semaphore: %v", err)
 			doneFunc(err)
 		} else {
 			go func() {
 				defer ls.writeSem.Release(1)
 				doneFunc(func() error {
 					_, err := ls.ts.client.Apply(ctx, m)
+					if err != nil {
+						glog.Errorf("AddSequencedLeaves() Apply(): %v", err)
+					}
 					return err
 				}())
 			}()
@@ -368,6 +373,7 @@ func (ls *logStorage) AddSequencedLeaves(ctx context.Context, tree *trillian.Tre
 	_, span = trace.StartSpan(ctx, "wait")
 	wg.Wait()
 	span.End()
+	glog.Infof("AddSequencedLeaves() after wg.Wait()")
 
 	// Check if any failed, and return the first error if so.
 	select {
