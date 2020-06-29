@@ -113,15 +113,18 @@ func (ms *mapStorage) createMapTX(tx *treeTX) (*mapTX, error) {
 }
 
 func (ms *mapStorage) SnapshotForTree(ctx context.Context, tree *trillian.Tree) (storage.ReadOnlyMapTreeTX, error) {
+	glog.Infof("SnapshotForTree")
 	return ms.begin(ctx, tree, true, ms.ts.client.ReadOnlyTransaction())
 }
 
 // Layout returns the layout of the given tree.
 func (ms *mapStorage) Layout(tree *trillian.Tree) (*tree.Layout, error) {
+	glog.Infof("Layout")
 	return defaultMapLayout, nil
 }
 
 func (ms *mapStorage) ReadWriteTransaction(ctx context.Context, tree *trillian.Tree, f storage.MapTXFunc) error {
+	glog.Infof("ReadWriteTransaction")
 	_, err := ms.ts.client.ReadWriteTransaction(ctx, func(ctx context.Context, stx *spanner.ReadWriteTransaction) error {
 		tx, err := ms.begin(ctx, tree, false /* readonly */, stx)
 		if err != nil && err != storage.ErrTreeNeedsInit {
@@ -170,6 +173,7 @@ func sthToSMR(sth *spannerpb.TreeHead) (*trillian.SignedMapRoot, error) {
 // LatestSignedMapRoot returns the freshest SignedMapRoot for this map at the
 // time the transaction was started.
 func (tx *mapTX) LatestSignedMapRoot(ctx context.Context) (*trillian.SignedMapRoot, error) {
+	glog.Infof("LatestSignedMapRoot")
 	currentSTH, err := tx.currentSTH(ctx)
 	if err != nil {
 		glog.Errorf("failed to determine current STH: %v", err)
@@ -193,6 +197,7 @@ func (tx *mapTX) LatestSignedMapRoot(ctx context.Context) (*trillian.SignedMapRo
 // This method will return an error if the caller attempts to store more than
 // one root per map for a given map revision.
 func (tx *mapTX) StoreSignedMapRoot(ctx context.Context, root *trillian.SignedMapRoot) error {
+	glog.Infof("StoreSignedMapRoot")
 	stx, ok := tx.stx.(*spanner.ReadWriteTransaction)
 	if !ok {
 		return ErrWrongTXType
@@ -249,6 +254,7 @@ func (tx *mapTX) StoreSignedMapRoot(ctx context.Context, root *trillian.SignedMa
 // Set sets the leaf with the specified index to value.
 // Returns an error if there's a problem with the underlying storage.
 func (tx *mapTX) Set(ctx context.Context, index []byte, value *trillian.MapLeaf) error {
+	glog.Infof("Set")
 	stx, ok := tx.stx.(*spanner.ReadWriteTransaction)
 	if !ok {
 		return ErrWrongTXType
@@ -279,6 +285,7 @@ func (tx *mapTX) Set(ctx context.Context, index []byte, value *trillian.MapLeaf)
 // GetTiles reads the Merkle tree tiles with the given root IDs at the given
 // revision. A tile is empty if it is missing from the returned slice.
 func (tx *mapTX) GetTiles(ctx context.Context, rev int64, ids []tree.NodeID2) ([]smt.Tile, error) {
+	glog.Infof("GetTiles")
 	rootIDs := make([]tree.NodeID, 0, len(ids))
 	for _, id := range ids {
 		rootIDs = append(rootIDs, tree.NewNodeIDFromID2(id))
@@ -350,6 +357,7 @@ func (t *treeTX) parallelGetMerkleNodes(ctx context.Context, rev int64) func([]s
 
 // SetTiles stores the given tiles at the current write revision.
 func (tx *mapTX) SetTiles(ctx context.Context, tiles []smt.Tile) error {
+	glog.Infof("SetTiles")
 	subs := make([]*storagepb.SubtreeProto, 0, len(tiles))
 	for _, tile := range tiles {
 		height := defaultMapLayout.TileHeight(int(tile.ID.BitLen()))
@@ -398,6 +406,7 @@ func (tx *mapTX) getMapLeaf(ctx context.Context, revision int64, index []byte) (
 // An error will be returned if there is a problem with the underlying
 // storage.
 func (tx *mapTX) Get(ctx context.Context, revision int64, indexes [][]byte) ([]*trillian.MapLeaf, error) {
+	glog.Infof("Get")
 	// c will carry any retrieved MapLeaves.
 	c := make(chan *trillian.MapLeaf, len(indexes))
 	g, gctx := errgroup.WithContext(ctx)
@@ -430,6 +439,7 @@ func (tx *mapTX) Get(ctx context.Context, revision int64, indexes [][]byte) ([]*
 // GetSignedMapRoot returns the SignedMapRoot for revision.
 // An error will be returned if there is a problem with the underlying storage.
 func (tx *mapTX) GetSignedMapRoot(ctx context.Context, revision int64) (*trillian.SignedMapRoot, error) {
+	glog.Infof("GetSignedMapRoot")
 	query := spanner.NewStatement(
 		`SELECT t.TreeID, t.TimestampNanos, t.TreeSize, t.RootHash, t.RootSignature, t.TreeRevision, t.TreeMetadata FROM TreeHeads t
 				WHERE t.TreeID = @tree_id

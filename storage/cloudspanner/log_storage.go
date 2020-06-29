@@ -191,10 +191,12 @@ func (ls *logStorage) begin(ctx context.Context, tree *trillian.Tree, readonly b
 }
 
 func (ls *logStorage) BeginForTree(ctx context.Context, treeID int64) (storage.LogTreeTX, error) {
+	glog.Infof("BeginForTree: NOT IMPLEMENTED")
 	return nil, ErrNotImplemented
 }
 
 func (ls *logStorage) ReadWriteTransaction(ctx context.Context, tree *trillian.Tree, f storage.LogTXFunc) error {
+	glog.Infof("ReadWriteTransaction")
 	_, err := ls.ts.client.ReadWriteTransaction(ctx, func(ctx context.Context, stx *spanner.ReadWriteTransaction) error {
 		tx, err := ls.begin(ctx, tree, false /* readonly */, stx)
 		if err != nil && err != storage.ErrTreeNeedsInit {
@@ -209,6 +211,7 @@ func (ls *logStorage) ReadWriteTransaction(ctx context.Context, tree *trillian.T
 }
 
 func (ls *logStorage) SnapshotForTree(ctx context.Context, tree *trillian.Tree) (storage.ReadOnlyLogTreeTX, error) {
+	glog.Infof("SnapshotForTree")
 	return ls.begin(ctx, tree, true /* readonly */, ls.ts.client.ReadOnlyTransaction())
 }
 
@@ -454,6 +457,7 @@ func (tx *logTX) getLogStorageConfig() *spannerpb.LogStorageConfig {
 // LatestSignedLogRoot returns the freshest SignedLogRoot for this log at the
 // time the transaction was started.
 func (tx *logTX) LatestSignedLogRoot(ctx context.Context) (*trillian.SignedLogRoot, error) {
+	glog.Infof("LatestSignedLogRoot")
 	currentSTH, err := tx.currentSTH(ctx)
 	if err != nil {
 		return nil, err
@@ -492,6 +496,7 @@ func (tx *logTX) LatestSignedLogRoot(ctx context.Context) (*trillian.SignedLogRo
 // This method will return an error if the caller attempts to store more than
 // one root per log for a given tree size.
 func (tx *logTX) StoreSignedLogRoot(ctx context.Context, root *trillian.SignedLogRoot) error {
+	glog.Infof("StoreSignedLogRoot")
 	writeRev, err := tx.writeRev(ctx)
 	if err == storage.ErrTreeNeedsInit {
 		writeRev = 0
@@ -573,6 +578,7 @@ func readLeaves(ctx context.Context, stx *spanner.ReadOnlyTransaction, logID int
 //
 // TODO(al): cutoff is currently ignored.
 func (tx *logTX) DequeueLeaves(ctx context.Context, limit int, cutoff time.Time) ([]*trillian.LogLeaf, error) {
+	glog.Infof("DequeueLeaves")
 	if limit <= 0 {
 		return nil, fmt.Errorf("limit should be > 0, got %d", limit)
 	}
@@ -675,6 +681,7 @@ func (tx *logTX) DequeueLeaves(ctx context.Context, limit int, cutoff time.Time)
 // UpdateSequencedLeaves stores the sequence numbers assigned to the leaves,
 // and integrates them into the tree.
 func (tx *logTX) UpdateSequencedLeaves(ctx context.Context, leaves []*trillian.LogLeaf) error {
+	glog.Infof("UpdateSequencedLeaves")
 	stx, ok := tx.stx.(*spanner.ReadWriteTransaction)
 	if !ok {
 		return ErrWrongTXType
@@ -726,6 +733,7 @@ func (tx *logTX) UpdateSequencedLeaves(ctx context.Context, leaves []*trillian.L
 // GetSequencedLeafCount returns the number of leaves integrated into the tree
 // at the time the transaction was started.
 func (tx *logTX) GetSequencedLeafCount(ctx context.Context) (int64, error) {
+	glog.Infof("GetSequencedLeafCount")
 	currentSTH, err := tx.currentSTH(ctx)
 	if err != nil {
 		return -1, err
@@ -836,6 +844,7 @@ func validateIndices(indices []int64, treeSize int64) error {
 
 // GetLeavesByIndex returns the leaves corresponding to the given indices.
 func (tx *logTX) GetLeavesByIndex(ctx context.Context, indices []int64) ([]*trillian.LogLeaf, error) {
+	glog.Infof("GetLeavesByIndex")
 	// We need the latest root to validate the indices are within range.
 	currentSTH, err := tx.currentSTH(ctx)
 	if err != nil {
@@ -931,6 +940,7 @@ func validateRange(start, count, treeSize int64) error {
 
 // GetLeavesByRange returns the leaves corresponding to the given index range.
 func (tx *logTX) GetLeavesByRange(ctx context.Context, start, count int64) ([]*trillian.LogLeaf, error) {
+	glog.Infof("GetLeavesByRange")
 	// We need the latest root to validate the indices are within range.
 	currentSTH, err := tx.currentSTH(ctx)
 	if err != nil {
@@ -1092,6 +1102,7 @@ func (tx *logTX) getUsingIndex(ctx context.Context, idx string, keys [][]byte, b
 //   member of the returned leaves. We should convert this method to use SQL
 //   rather than denormalising IntegrateTimestampNanos into the index too.
 func (tx *logTX) GetLeavesByHash(ctx context.Context, hashes [][]byte, bySeq bool) ([]*trillian.LogLeaf, error) {
+	glog.Infof("GetLeavesByHash")
 	return tx.getUsingIndex(ctx, seqDataByMerkleHashIdx, hashes, bySeq)
 }
 
