@@ -91,6 +91,7 @@ func newMapCache(tree *trillian.Tree) (*cache.SubtreeCache, error) {
 
 // Returns a ready-to-use MapTreeTX.
 func (ms *mapStorage) begin(ctx context.Context, tree *trillian.Tree, readonly bool, stx spanRead) (*mapTX, error) {
+	glog.Infof("begin")
 	tx, err := ms.ts.begin(ctx, tree, newMapCache, stx)
 	if err != nil {
 		glog.Errorf("failed to treeStorage.begin(treeID=%d): %v", tree.TreeId, err)
@@ -101,8 +102,10 @@ func (ms *mapStorage) begin(ctx context.Context, tree *trillian.Tree, readonly b
 }
 
 func (ms *mapStorage) createMapTX(tx *treeTX) (*mapTX, error) {
+	glog.Infof("createMapTx")
 	// Sanity check tx.config
 	if cfg, ok := tx.config.(*spannerpb.MapStorageConfig); !ok || cfg == nil {
+		glog.Errorf("unexpected config type for MAP tree %v: %T", tx.treeID, tx.config)
 		return nil, fmt.Errorf("unexpected config type for MAP tree %v: %T", tx.treeID, tx.config)
 	}
 
@@ -405,8 +408,9 @@ func (tx *mapTX) getMapLeaf(ctx context.Context, revision int64, index []byte) (
 // as the corresponding values in indexes.
 // An error will be returned if there is a problem with the underlying
 // storage.
-func (tx *mapTX) Get(ctx context.Context, revision int64, indexes [][]byte) ([]*trillian.MapLeaf, error) {
+func (tx *mapTX) Get(ctx context.Context, revision int64, indexes [][]byte) (leaves []*trillian.MapLeaf, e error) {
 	glog.Infof("Get")
+	defer func() { glog.Infof("Get done: %v leaves, err: %v", len(leaves), e) }()
 	// c will carry any retrieved MapLeaves.
 	c := make(chan *trillian.MapLeaf, len(indexes))
 	g, gctx := errgroup.WithContext(ctx)
