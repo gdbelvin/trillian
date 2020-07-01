@@ -376,26 +376,25 @@ func (tx *mapTX) SetTiles(ctx context.Context, tiles []smt.Tile) error {
 // getMapLeaf fetches and returns the MapLeaf stored at the specified index and
 // revision.
 func (tx *mapTX) getMapLeaf(ctx context.Context, revision int64, index []byte) (*trillian.MapLeaf, error) {
-	cols := []string{colLeafIndex, colMapRevision, colLeafHash, colLeafValue, colExtraData}
-	rowKey := spanner.Key{tx.treeID, index}.AsPrefix()
 	var l *trillian.MapLeaf
-	rows := tx.stx.Read(ctx, mapLeafDataTbl, spanner.KeySets(rowKey), cols)
-	err := rows.Do(func(r *spanner.Row) error {
-		// TODO(alcutter): add MapRevision to trillian.MapLeaf
-		var rev int64
-		var leaf trillian.MapLeaf
-		if err := r.Columns(&leaf.Index, &rev, &leaf.LeafHash, &leaf.LeafValue, &leaf.ExtraData); err != nil {
-			return err
-		}
-		// Leaves are stored by descending revision, so the first one we find which
-		// satisfies this condition is good:
-		if rev <= revision {
-			l = &leaf
-			return errFinished
-		}
-		return nil
-	})
-	if err != nil && err != errFinished {
+	if err := tx.stx.Read(ctx, mapLeafDataTbl,
+		spanner.Key{tx.treeID, index}.AsPrefix(),
+		[]string{colLeafIndex, colMapRevision, colLeafHash, colLeafValue, colExtraData}).
+		Do(func(r *spanner.Row) error {
+			// TODO(alcutter): add MapRevision to trillian.MapLeaf
+			var rev int64
+			var leaf trillian.MapLeaf
+			if err := r.Columns(&leaf.Index, &rev, &leaf.LeafHash, &leaf.LeafValue, &leaf.ExtraData); err != nil {
+				return err
+			}
+			// Leaves are stored by descending revision, so the first one we find which
+			// satisfies this condition is good:
+			if rev <= revision {
+				l = &leaf
+				return errFinished
+			}
+			return nil
+		}); err != nil && err != errFinished {
 		glog.Errorf("failed to read MapLeafData row for rev %d index %x: %v", revision, index, err)
 		return nil, err
 	}
