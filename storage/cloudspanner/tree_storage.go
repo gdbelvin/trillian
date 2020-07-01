@@ -19,6 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -154,7 +155,9 @@ func (t *treeStorage) begin(ctx context.Context, tree *trillian.Tree, newCache n
 		cache:     subtreeCache,
 		config:    config,
 		_writeRev: -1,
+		id:        rand.Int63(),
 	}
+	glog.Infof("treeTX.begin id: %v", treeTX.id)
 
 	return treeTX, nil
 }
@@ -201,6 +204,7 @@ type treeTX struct {
 	cache *cache.SubtreeCache
 
 	getLatestRootOnce sync.Once
+	id                int64
 }
 
 func (t *treeTX) currentSTH(ctx context.Context) (*spannerpb.TreeHead, error) {
@@ -256,6 +260,7 @@ func (t *treeTX) flushSubtrees(ctx context.Context) error {
 // On return from the call, this transaction will be in a closed state.
 func (t *treeTX) Commit(ctx context.Context) error {
 	t.mu.Lock()
+	glog.Infof("treeTX.Commit id: %v", t.id)
 	defer func() {
 		t.stx = nil
 		t.mu.Unlock()
@@ -281,6 +286,7 @@ func (t *treeTX) Commit(ctx context.Context) error {
 // On return from the call, this transaction will be in a closed state.
 func (t *treeTX) Rollback() error {
 	t.mu.Lock()
+	glog.Infof("treeTX.Rollback id: %v", t.id)
 	defer func() {
 		t.stx = nil
 		t.mu.Unlock()
@@ -294,6 +300,7 @@ func (t *treeTX) Rollback() error {
 
 func (t *treeTX) Close() error {
 	if t.IsOpen() {
+		glog.Infof("treeTX.Close id: %v", t.id)
 		if err := t.Rollback(); err != nil && err != ErrTransactionClosed {
 			glog.Warningf("Rollback error on Close(): %v", err)
 			return err
