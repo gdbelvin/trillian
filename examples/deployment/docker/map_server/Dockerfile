@@ -28,5 +28,3 @@ COPY --from=build /go/bin/dlv /
 COPY --from=build /THIRD_PARTY_NOTICES /THIRD_PARTY_NOTICES
 
 CMD ["dlv", "debug", "--headless", "--listen=:9999", "--log"]
-
-ENTRYPOINT ["/trillian_map_server"]
